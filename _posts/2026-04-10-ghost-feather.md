@@ -9,17 +9,16 @@ tags: [embedded,software,hardware,drone,c]
 
 ## Introduction
 
-> [!NOTE]
 > **Please bear in mind that the pcb was primarily created for enjoyment
 > and educational endeavors.**
-
+>
 > Ghost Feather v1 is a compact, four-layer PCB built for embedded systems and robotics exploration 🤖.
 > Designed with versatility and performance in mind, it brings together a robust set of components for
 > a wide range of applications.
 >
 > This is the first version of the board, featuring only basic functionality – telemetry and advanced
 > features are not yet included.
-
+>
 > ✨ Key Features
 >
 > - 🧠 STM32F722RET6 – Powerful Cortex-M7 MCU at the heart of the board
@@ -39,7 +38,7 @@ tags: [embedded,software,hardware,drone,c]
 > This section includes the complete schematic of the board, created with KiCad.
 > It outlines the core circuitry, microcontroller wiring, level shifters, connectors, and power.
 
-![Schematic](https://github.com/PanBabinicz/ghost-feather/blob/develop/doc/hardware/ghost-feather-v1/screenshots/ghost-feather-v1-kicad-schematic.png)
+![Schematic](https://github.com/PanBabinicz/ghost-feather/blob/develop/doc/hardware/ghost-feather-v1/screenshots/ghost-feather-v1-kicad-schematic.png?raw=true)
 
 ## 🛠️ PCB
 
@@ -48,17 +47,17 @@ tags: [embedded,software,hardware,drone,c]
 > board layout, and connector orientation.
 
 ### KiCAD 3D Model
-![Front](https://github.com/PanBabinicz/ghost-feather/blob/develop/doc/hardware/ghost-feather-v1/screenshots/ghost-feather-v1-pcb-front.png)
-![Rear](https://github.com/PanBabinicz/ghost-feather/blob/develop/doc/hardware/ghost-feather-v1/screenshots/ghost-feather-v1-pcb-rear.png)
+![Front](https://github.com/PanBabinicz/ghost-feather/blob/develop/doc/hardware/ghost-feather-v1/screenshots/ghost-feather-v1-pcb-front.png?raw=true)
+![Rear](https://github.com/PanBabinicz/ghost-feather/blob/develop/doc/hardware/ghost-feather-v1/screenshots/ghost-feather-v1-pcb-rear.png?raw=true)
 
 ### Manufactured PCB
-![Bench](https://github.com/PanBabinicz/ghost-feather/blob/develop/doc/hardware/ghost-feather-v1/screenshots/real-drone-1.jpg)
-![Floor](https://github.com/PanBabinicz/ghost-feather/blob/develop/doc/hardware/ghost-feather-v1/screenshots/real-drone-2.jpg)
+![Bench](https://github.com/PanBabinicz/ghost-feather/blob/develop/doc/hardware/ghost-feather-v1/screenshots/real-drone-1.jpg?raw=true)
+![Floor](https://github.com/PanBabinicz/ghost-feather/blob/develop/doc/hardware/ghost-feather-v1/screenshots/real-drone-2.jpg?raw=true)
 
 ## PID Gain Tuning Using a Dedicated Test Stand
 
 ### Preparation for tuning PID gains
-![OnBench](https://github.com/PanBabinicz/ghost-feather/blob/master/doc/hardware/ghost-feather-v1/screenshots/real-drone-prepared-for-tuning.jpg)
+![OnBench](https://github.com/PanBabinicz/ghost-feather/blob/master/doc/hardware/ghost-feather-v1/screenshots/real-drone-prepared-for-tuning.jpg?raw=true)
 
 > To obtain accurate and repeatable PID gains for the drone, a **dedicated tuning stand** is used. This setup allows controlled
 > testing of the control system without the risks and external disturbances associated with free flight.
