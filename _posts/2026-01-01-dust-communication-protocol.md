@@ -115,11 +115,7 @@ tags: [embedded,software,dfu,drone,c]
 > The connection establishment sets the payload size for future data packets. In this process only header is sent.
 > The receiver calculates the checksum of the header and check it's correctness. It then sends an ACK header.
 
-```mermaid
-sequenceDiagram
-    UPDATER->>DEVICE: CONNECT PACKET
-    DEVICE-->>UPDATER: CONNECT ACK PACKET
-```
+![dust-connect](https://github.com/PanBabinicz/PanBabinicz.github.io/blob/main/assets/screenshots/dust_connect.png?raw=true)
 
 ### CONNECT PACKET
 
@@ -216,28 +212,14 @@ sequenceDiagram
 > During data transmission, firmware bytes are sent in the payload.
 > The rate of ACK packets depends on the options passed during the handshake.
 
- ```mermaid
- sequenceDiagram
-     UPDATER->>DEVICE: DATA[0] PACKET
-     UPDATER->>DEVICE: DATA[1] PACKET
-     UPDATER->>DEVICE: DATA[2] PACKET
-     UPDATER->>DEVICE: ...
-     UPDATER->>DEVICE: DATA[n] PACKET
-     DEVICE-->>UPDATER: DATA ACK PACKET
-     UPDATER->>DEVICE: DATA[n+1] PACKET
-     UPDATER->>DEVICE: ...
- ```
+![dust-data-transmission](https://github.com/PanBabinicz/PanBabinicz.github.io/blob/main/assets/screenshots/dust_data_transmission.png?raw=true)
 
 ## Disconnection
 
 > Disconnection is performed from slave side. The device that updates itself
 > sends the disconnection packet after the last data is received.
 
- ```mermaid
- sequenceDiagram
-     DEVICE-->>UPDATER: DISCONNECTION PACKET
-     UPDATER->>DEVICE: DISCONNECTION PACKET ACK
- ```
+![dust-disconnect](https://github.com/PanBabinicz/PanBabinicz.github.io/blob/main/assets/screenshots/dust_disconnect.png?raw=true)
 
 ### DISCONNECTION PACKET
 
