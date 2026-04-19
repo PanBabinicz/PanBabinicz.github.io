@@ -509,6 +509,375 @@ _main:
 
 ```
 
+## I2C Driver
+
+```asm
+        .syntax unified
+        .cpu cortex-m4
+        .thumb
+
+        .include "stm32f446re_i2c.inc"
+
+        .text
+        .balign 4
+        .type _i2c_software_reset, %function
+_i2c_software_reset:
+1:
+        ldr r1, [r0, #i2c_cr1_offset]
+        orr r1, #i2c_cr1_swrst
+        str r1, [r0, #i2c_cr1_offset]
+        ldr r1, [r0, #i2c_cr1_offset]
+        tst r1, #i2c_cr1_swrst
+        it eq
+        beq 1b
+        bic r1, #i2c_cr1_swrst
+        str r1, [r0, #i2c_cr1_offset]
+        bx lr
+
+        .text
+        .balign 4
+        .type _i2c_set_peripheral_input_clock, %function
+        @ Argument in r0: i2c base address
+        @ Argument in r1: i2c clock frequency (2MHz, 50MHz)
+_i2c_set_peripheral_input_clock:
+        ldr r3, =0x000f4240             @ 1000000
+        udiv r1, r1, r3
+        str r1, [r0, #i2c_cr2_offset]
+        bx lr
+
+        .text
+        .balign 4
+        .type _i2c_configure_clock, %function
+        @ Argument in r0: i2c base address
+        @ Argument in r1: i2c clock frequency (2MHz, 50MHz)
+        @ Argument in r2: i2c scl frequency (0, 100kHz) or (100kHz, 400kHz)
+_i2c_configure_clock:                   @ TODO: Check the math here
+        push { r4-r7 }
+        lsl r4, r2, #0x01               @ 2*fscl
+        ldr r3, =0x000186a0             @ 100kHz
+        cmp r2, r3
+        itte hi
+        addhi r4, r2                    @ 3*fscl
+        movhi r5, #0x01                 @ Fast mode
+        movls r5, #0x00                 @ Standard mode
+        udiv r6, r1, r4                 @ fpclk / x*fscl
+        lsl r5, #0x0f                   @ shift f/s bit on 15th position
+        orr r6, r5
+        bic r6, #(0x01 << 14)           @ duty is 0
+        str r6, [r0, #i2c_ccr_offset]
+i2c_configure_clock_exit:
+        pop { r4-r7 }
+        bx lr
+
+        .text
+        .balign 4
+        .type _i2c_configure_rise_time, %function
+        @ Argument in r0: i2c base address
+        @ Argument in r1: i2c clock frequency (2MHz, 50MHz)
+        @ Argument in r2: i2c scl frequency (0, 100kHz) or (100kHz, 400kHz)
+_i2c_configure_rise_time:               @ TODO: Bug in this function
+        push { r4 }
+        sub sp, sp, #0x04
+        ldr r3, =0x000186a0             @ 100kHz
+        cmp r2, r3
+        ittt hi
+        movhi r3, #0x012c               @ 300ns
+        mulhi r4, r1, r3                @ trise = clock_frequency * r3
+        lsrhi r4, r4, #0x0a             @ divide by 1024
+        itt ls
+        movls r3, #0x01                 @ 1us
+        mulls r4, r1, r3                @ trise = clock_frequency * r3
+        add r4, r4, #0x01
+        str r4, [r0, #i2c_trise_offset]
+        add sp, sp, #0x04
+        pop { r4 }
+        bx lr
+
+        .text
+        .balign 4
+        .type _i2c_enable, %function
+        @ Argument in r0: i2c base address
+_i2c_enable:
+        ldr r1, [r0, #i2c_cr1_offset]
+        orr r1, #i2c_cr1_pe
+        str r1, [r0, #i2c_cr1_offset]
+        bx lr
+
+        .text
+        .balign 4
+        .type _i2c_check_arguments, %function
+        @ Argument in r0: i2c check argument status
+        @ Argument in r1: i2c clock frequency (2MHz, 50MHz)
+        @ Argument in r2: i2c scl frequency (0, 100kHz) or (100kHz, 400kHz)
+_i2c_check_arguments:
+        ldr r3, =0x001e8480             @ 2MHz
+        cmp r1, r3
+        itt lo
+        movlo r0, #0x01                 @ Error: clock frequency is less than 2MHz
+        blo i2c_check_arguments_exit
+        ldr r3, =0x02faf080             @ 50MHz
+        cmp r1, r3
+        itt hi
+        movhi r0, #0x01                 @ Error: clock frequency is greater than 50MHz
+        bhi i2c_check_arguments_exit
+        ldr r3, =0x00                   @ 0Hz
+        cmp r2, r3
+        itt eq
+        moveq r0, #0x01                 @ Error: scl frequency is equal 0Hz
+        beq i2c_check_arguments_exit
+        ldr r3, =0x00061a80             @ 400kHz
+        cmp r2, r3
+        itt hi
+        movhi r0, #0x01                 @ Error: scl frequency is greater than 400kHz
+        bhi i2c_check_arguments_exit
+        mov r0, #0x00                   @ Success: clock and scl frequencies are okey
+i2c_check_arguments_exit:
+        bx lr
+
+        .text
+        .balign 4
+        .type _i2c_transmit_byte, %function
+        @ Argument in r0: i2c base address
+        @ Argument in r1: data byte
+_i2c_transmit_byte:
+        ldrb r2, [r1], #0x01
+        strb r2, [r0, #i2c_dr_offset]
+        bx lr
+
+        .text
+        .balign 4
+        .type _i2c_receive_byte, %function
+        @ Argument in r0: i2c base address
+        @ Argument in r1: data buffer address
+_i2c_receive_byte:
+        ldrb r2, [r0, #i2c_dr_offset]
+        strb r2, [r1], #0x01
+        bx lr
+
+        .text
+        .balign 4
+        .global _i2c_master_transmit
+        .type _i2c_master_transmit, %function
+        @ Argument in r0: i2c base address
+        @ Argument in r1: data buffer address
+        @ Argument in r2: data size size
+        @ Argument in r3: slave address
+_i2c_master_transmit:
+        push { r4-r5, lr }
+        mov r5, r2
+        sub sp, sp, #0x04
+        ldr r4, [r0, #i2c_cr1_offset]
+        orr r4, #i2c_cr1_start
+        str r4, [r0, #i2c_cr1_offset]   @ Start generation
+i2c_master_transmit_check_sb:
+        ldr r4, [r0, #i2c_sr1_offset]
+        tst r4, #i2c_sr1_sb
+        it eq
+        beq i2c_master_transmit_check_sb
+        lsl r3, #0x01                   @ Shift the address, lsb signals the mode
+        bic r3, #0x01                   @ Enter the transmitter mode
+        strb r3, [r0, #i2c_dr_offset]
+i2c_master_transmit_check_addr:
+        ldr r4, [r0, #i2c_sr1_offset]
+        tst r4, #i2c_sr1_addr
+        it eq
+        beq i2c_master_transmit_check_addr
+        ldr r4, [r0, #i2c_sr2_offset]   @ Read sr2 after sr1 to clear the addr
+i2c_master_transmit_next_byte:
+        bl _i2c_transmit_byte           @ Don't need to save r2 because I dont use it anymore
+        subs r5, #0x01
+        it eq
+        beq i2c_master_transmit_check_btf
+i2c_master_transmit_is_empty:
+        ldr r4, [r0, #i2c_sr1_offset]
+        tst r4, #i2c_sr1_txe
+        it ne
+        bne i2c_master_transmit_next_byte
+        it eq
+        beq i2c_master_transmit_is_empty
+i2c_master_transmit_check_btf:
+        ldr r4, [r0, #i2c_sr1_offset]
+        tst r4, #i2c_sr1_btf
+        it eq
+        beq i2c_master_transmit_check_btf
+        ldr r4, [r0, #i2c_cr1_offset]
+        orr r4, #i2c_cr1_stop
+        str r4, [r0, #i2c_cr1_offset]
+        add sp, sp, #0x04
+        pop { r4-r5, lr }
+        bx lr
+
+        .text
+        .balign 4
+        .global _i2c_master_receive
+        .type _i2c_master_receive, %function
+        @ Argument in r0: i2c base address
+        @ Argument in r1: data buffer address
+        @ Argument in r2: data buffer size
+        @ Argument in r3: slave address
+_i2c_master_receive:
+        push { r4-r5, lr }
+        sub sp, sp, #0x04
+        mov r5, r2                      @ Save the data buffer size
+        ldr r4, [r0, #i2c_cr1_offset]
+        orr r4, #i2c_cr1_start
+        str r4, [r0, #i2c_cr1_offset]   @ Start generation
+i2c_master_receive_check_sb:
+        ldr r4, [r0, #i2c_sr1_offset]
+        tst r4, #i2c_sr1_sb
+        it eq
+        beq i2c_master_receive_check_sb
+        lsl r3, #0x01                   @ Shift the address, lsb signals the mode
+        orr r3, #0x01                   @ Enter the receiver mode
+        strb r3, [r0, #i2c_dr_offset]
+i2c_master_receive_check_addr:
+        ldr r4, [r0, #i2c_sr1_offset]
+        tst r4, #i2c_sr1_addr
+        it eq
+        beq i2c_master_receive_check_addr
+        ldr r4, [r0, #i2c_sr2_offset]   @ Read sr2 after sr1 to clear the addr
+i2c_master_receive_next_byte:
+1:
+        ldr r4, [r0, #i2c_sr1_offset]
+        tst r4, #i2c_sr1_rxne
+        it eq
+        beq 1b                          @ Wait for the data to be available in buffer
+        subs r5, #0x01
+        bl _i2c_receive_byte
+        ite ne
+        cmpne r5, #0x01
+        beq 3f
+        it ne
+        bne i2c_master_receive_next_byte
+        ldr r4, [r0, #i2c_cr1_offset]   @ Prepare the NACK
+        bic r4, #i2c_cr1_ack
+        str r4, [r0, #i2c_cr1_offset]
+2:
+        ldr r4, [r0, #i2c_sr1_offset]
+        tst r4, #i2c_sr1_rxne
+        it eq
+        beq 2b                          @ Wait for the data to be available in buffer
+        bl _i2c_receive_byte            @ Receive the last byte
+3:
+        ldr r4, [r0, #i2c_cr1_offset]
+        orr r4, #i2c_cr1_stop           @ Set STOP
+        str r4, [r0, #i2c_cr1_offset]
+        add sp, sp, #0x04
+        pop { r4-r5, lr }
+        bx lr
+
+        .text
+        .balign 4
+        .global _i2c_slave_transmit
+        .type _i2c_slave_transmit, %function
+        @ Argument in r0: i2c base address
+        @ Argument in r1: data buffer
+        @ Argument in r2: data size
+_i2c_slave_transmit:
+        push { r4, lr }
+        mov r4, r2
+1:
+        ldr r3, [r0, #i2c_sr1_offset]
+        tst r3, #i2c_sr1_addr           @ Check if addr flag is set (the received address matched)
+        it eq
+        beq 1b
+        ldr r3, [r0, #i2c_sr2_offset]   @ Clear the addr flag
+i2c_slave_transmit_next_byte:
+2:
+        ldr r3, [r0, #i2c_sr1_offset]
+        tst r3, #i2c_sr1_txe
+        it eq
+        beq 2b
+        subs r4, #0x01
+        bl _i2c_transmit_byte
+        it ne
+        bne i2c_slave_transmit_next_byte
+i2c_slave_transmit_check_stopf_af:
+        ldr r3, [r0 ,#i2c_sr1_offset]
+        tst r3, #i2c_sr1_stopf          @ Check if stop flag is set
+        it ne
+        bne i2c_slave_transmit_stopf_detected
+        tst r3, #i2c_sr1_af
+        it eq
+        beq i2c_slave_transmit_check_stopf_af
+i2c_slave_transmit_stopf_detected:
+        ldr r3, [r0, #i2c_cr1_offset]
+        str r3, [r0, #i2c_cr1_offset]   @ Clear the STOPF flag
+        mov r3, #0x00
+        str r3, [r0, #i2c_sr1_offset]   @ Clear the AF flag
+        pop { r4, lr }
+        bx lr
+
+        .text
+        .balign 4
+        .global _i2c_slave_receive
+        .type _i2c_slave_receive, %function
+        @ Argument in r0: i2c base address
+        @ Argument in r1: data buffer address
+        @ Argument in r2: data buffer size
+_i2c_slave_receive:
+        push { r4, lr }
+        mov r4, r2
+1:
+        ldr r3, [r0, #i2c_sr1_offset]
+        tst r3, #i2c_sr1_addr           @ Check if addr flag is set (the received address matched)
+        it eq
+        beq 1b
+        ldr r3, [r0, #i2c_sr2_offset]   @ Clear the addr flag
+i2c_slave_receive_next_byte:
+2:
+        ldr r3, [r0, #i2c_sr1_offset]
+        tst r3, #i2c_sr1_rxne
+        it eq
+        beq 2b
+        subs r4, #0x01
+        bl _i2c_receive_byte
+        it ne
+        bne i2c_slave_receive_next_byte
+i2c_slave_receive_check_stopf:
+        ldr r3, [r0, #i2c_sr1_offset]
+        tst r3, #i2c_sr1_stopf
+        it eq
+        beq i2c_slave_receive_check_stopf
+        ldr r3, [r0, #i2c_cr1_offset]
+        str r3, [r0, #i2c_cr1_offset]
+        pop { r4, lr }
+        bx lr
+
+        .text
+        .balign 4
+        .global _i2c_init
+        .type _i2c_init, %function
+        @ Argument in r0: i2c base address / i2c init status
+        @ Argument in r1: i2c clock frequency (2MHz, 50MHz)
+        @ Argument in r2: i2c scl frequency (0, 100kHz) or (100kHz, 400kHz)
+_i2c_init:
+        push { r4-r5, lr }
+        sub sp, sp, #0x04
+        mov r4, r0
+        mov r5, r1
+        bl _i2c_check_arguments
+        cmp r0, #0x00
+        it ne
+        bne i2c_init_exit
+        mov r0, r4
+        bl _i2c_software_reset
+        mov r0, r4
+        mov r1, r5
+        bl _i2c_set_peripheral_input_clock
+        mov r1, r5
+        bl _i2c_configure_clock
+        bl _i2c_configure_rise_time
+        bl _i2c_enable
+i2c_init_exit:
+        add sp, sp, #0x04
+        pop { r4-r5, lr }
+        bx lr
+
+        .end
+
+```
+
 ## Usage
 
 - **Debugger**  
